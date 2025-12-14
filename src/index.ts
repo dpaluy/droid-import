@@ -16,8 +16,7 @@ import {
 } from "./analyzer";
 import type { CLIArgs, DiscoveredPlugin } from "./types";
 
-const HELP_TEXT = `
-droid-import - Import Claude Code marketplace plugins into FactoryAI
+const HELP_TEXT = `Import Claude Code marketplace plugins into FactoryAI
 
 USAGE:
   droid-import [options]
@@ -456,7 +455,8 @@ async function main(): Promise<void> {
   const args = parseCliArgs();
 
   if (args.help) {
-    console.log(HELP_TEXT);
+    const pkg = await import("../package.json");
+    console.log(`droid-import v${pkg.version} - ${HELP_TEXT}`);
     process.exit(0);
   }
 
