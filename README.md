@@ -62,7 +62,7 @@ bunx droid-import --marketplace <url> --no-skills --no-commands
 |--------|-------------|
 | `--marketplace <url>` | Marketplace URL, GitHub shorthand (owner/repo), or local path |
 | `--plugins <names>` | Comma-separated plugin names (default: all) |
-| `--scope <scope>` | Install location: `personal` (~/.factory) or `project` (.factory) |
+| `--scope <scope>` | Install location: `personal` (~/.factory) or `project` (.factory, default) |
 | `--path <dir>` | Project directory for 'project' scope (default: cwd) |
 | `--force` | Overwrite existing files |
 | `--dry-run` | Preview changes without writing files |

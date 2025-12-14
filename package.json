@@ -1,6 +1,6 @@
 {
   "name": "droid-import",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Import Claude Code marketplace plugins into FactoryAI",
   "type": "module",
   "bin": {
@@ -11,7 +11,7 @@
     "typecheck": "bun x tsc --noEmit"
   },
   "dependencies": {
-    "@clack/prompts": "^0.9.1",
+    "@clack/prompts": "^0.11.0",
     "gray-matter": "^4.0.3"
   },
   "devDependencies": {

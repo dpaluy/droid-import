@@ -110,7 +110,8 @@ function formatPluginChoice(plugin: DiscoveredPlugin): string {
 }
 
 async function interactiveFlow(): Promise<void> {
-  p.intro("droid-import");
+  const pkg = await import("../package.json");
+  p.intro(`droid-import v${pkg.version}`);
 
   // Step 1: Marketplace URL
   const marketplaceInput = await p.text({
@@ -304,6 +305,9 @@ async function interactiveFlow(): Promise<void> {
 }
 
 async function nonInteractiveFlow(args: ExtendedCLIArgs): Promise<void> {
+  const pkg = await import("../package.json");
+  console.log(`droid-import v${pkg.version}`);
+
   if (!args.marketplace) {
     console.error("Error: --marketplace is required in non-interactive mode");
     process.exit(1);
