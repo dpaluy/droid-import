@@ -65,16 +65,34 @@ function resolvePluginSource(
   return { kind: "unsupported", reason: "Unknown source type", overrides };
 }
 
-function listMarkdownFilesLocal(dir: string): string[] {
+function listMarkdownFilesLocal(dir: string, prefix = ""): string[] {
   try {
     if (!existsSync(dir) || !statSync(dir).isDirectory()) return [];
-    return readdirSync(dir)
-      .filter((f) => f.endsWith(".md"))
-      .map((f) => join(dir, f))
-      .sort();
+    const results: string[] = [];
+    for (const entry of readdirSync(dir)) {
+      const fullPath = join(dir, entry);
+      if (statSync(fullPath).isDirectory()) {
+        const subPrefix = prefix ? `${prefix}-${entry}` : entry;
+        results.push(...listMarkdownFilesLocal(fullPath, subPrefix));
+      } else if (entry.endsWith(".md")) {
+        results.push(fullPath);
+      }
+    }
+    return results.sort();
   } catch {
     return [];
   }
+}
+
+function getCommandName(src: string, commandsDir: string): string {
+  const relativePath = src.slice(commandsDir.length + 1);
+  const parts = relativePath.split("/");
+  if (parts.length === 1) {
+    return basename(src, ".md");
+  }
+  const folders = parts.slice(0, -1);
+  const filename = basename(parts[parts.length - 1], ".md");
+  return `${folders.join("-")}-${filename}`;
 }
 
 function listSkillDirsLocal(dir: string): string[] {
@@ -155,7 +173,7 @@ async function scanPluginLocal(
   }));
 
   const commands: DiscoveredFile[] = commandFiles.map((src) => ({
-    name: basename(src, ".md"),
+    name: getCommandName(src, commandsDir),
     srcType: "local",
     src,
   }));
@@ -211,7 +229,7 @@ async function scanPluginGithub(
   const isMarkdown = (p: string) => /\.md$/i.test(p);
   const normalize = (p: string) => p.replace(/^\/+/, "").replace(/\/+/g, "/").replace(/\/+$/, "");
 
-  function listFilesFromTree(pathInRepo: string, filter?: (p: string) => boolean): string[] {
+  function listFilesFromTree(pathInRepo: string, filter?: (p: string) => boolean, recursive = false): string[] {
     const normalized = normalize(pathInRepo);
     if (!normalized) return [];
     const prefix = normalized + "/";
@@ -220,11 +238,27 @@ async function scanPluginGithub(
     for (const entry of tree) {
       if (entry.type !== "blob" || !entry.path.startsWith(prefix)) continue;
       const remainder = entry.path.slice(prefix.length);
-      if (!remainder || remainder.includes("/")) continue;
+      if (!remainder) continue;
+      if (!recursive && remainder.includes("/")) continue;
       if (filter && !filter(entry.path)) continue;
       results.push(toRawUrl(gh.owner, gh.repo, gh.ref, entry.path));
     }
     return results;
+  }
+
+  function getCommandNameFromUrl(url: string, commandsPath: string): string {
+    const parts = url.split("/");
+    const idx = parts.findIndex((p, i) => 
+      i < parts.length - 1 && parts.slice(i, i + commandsPath.split("/").length).join("/") === commandsPath
+    );
+    if (idx === -1) return parts[parts.length - 1].replace(/\.md$/i, "");
+    const afterCommands = parts.slice(idx + commandsPath.split("/").length);
+    if (afterCommands.length === 1) {
+      return afterCommands[0].replace(/\.md$/i, "");
+    }
+    const folders = afterCommands.slice(0, -1);
+    const filename = afterCommands[afterCommands.length - 1].replace(/\.md$/i, "");
+    return `${folders.join("-")}-${filename}`;
   }
 
   function listSkillsFromTree(pathInRepo: string): Map<string, string[]> {
@@ -276,16 +310,14 @@ async function scanPluginGithub(
     };
   });
 
-  // Commands
+  // Commands (recursive to support folders)
   const commandUrls = Array.isArray(overrides?.commands)
     ? overrides.commands.map((p) => toRawUrl(gh.owner, gh.repo, gh.ref, posix.join(base, p)))
-    : listFilesFromTree(commandsPath, isMarkdown);
+    : listFilesFromTree(commandsPath, isMarkdown, true);
 
   const commands: DiscoveredFile[] = commandUrls.map((src) => {
-    const urlParts = src.split("/");
-    const filename = urlParts[urlParts.length - 1];
     return {
-      name: filename.replace(/\.md$/i, ""),
+      name: getCommandNameFromUrl(src, commandsPath),
       srcType: "remote" as const,
       src,
     };
