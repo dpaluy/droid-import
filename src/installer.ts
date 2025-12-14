@@ -8,6 +8,7 @@ import type {
   InstallSkillItem,
   InstallResult,
 } from "./types";
+import type { PluginAnalysis } from "./analyzer";
 import { httpGet } from "./marketplace";
 import { convertAgentToDroid } from "./converters/agent";
 import { convertCommand } from "./converters/command";
@@ -18,6 +19,112 @@ export function getBaseDir(scope: "personal" | "project", projectPath?: string):
     return join(homedir(), ".factory");
   }
   return join(projectPath || process.cwd(), ".factory");
+}
+
+export interface FilteredPlanResult {
+  plan: InstallPlan;
+  skippedAgents: string[];
+  skippedCommands: string[];
+  skippedSkills: string[];
+}
+
+export function computeFilteredInstallPlan(
+  plugins: DiscoveredPlugin[],
+  analyses: PluginAnalysis[],
+  baseDir: string,
+  options: {
+    includeAgents: boolean;
+    includeCommands: boolean;
+    includeSkills: boolean;
+  }
+): FilteredPlanResult {
+  const droidsDir = join(baseDir, "droids");
+  const commandsDir = join(baseDir, "commands");
+  const skillsDir = join(baseDir, "skills");
+
+  const droids: InstallItem[] = [];
+  const commands: InstallItem[] = [];
+  const skills: InstallSkillItem[] = [];
+  const skippedAgents: string[] = [];
+  const skippedCommands: string[] = [];
+  const skippedSkills: string[] = [];
+
+  // Create a map of analysis results by plugin name
+  const analysisMap = new Map(analyses.map((a) => [a.name, a]));
+
+  for (const plugin of plugins) {
+    const analysis = analysisMap.get(plugin.name);
+
+    // Agents -> Droids (filter by compatibility)
+    if (options.includeAgents) {
+      for (const agent of plugin.agents) {
+        const agentAnalysis = analysis?.agents.find((a) => a.name === agent.name);
+        if (agentAnalysis && !agentAnalysis.result.compatible) {
+          skippedAgents.push(`${plugin.name}/${agent.name}`);
+          continue;
+        }
+        const dest = join(droidsDir, `${agent.name}.md`);
+        droids.push({
+          name: agent.name,
+          src: agent.src,
+          srcType: agent.srcType,
+          dest,
+          exists: existsSync(dest),
+        });
+      }
+    }
+
+    // Commands (filter by compatibility)
+    if (options.includeCommands) {
+      for (const cmd of plugin.commands) {
+        const cmdAnalysis = analysis?.commands.find((c) => c.name === cmd.name);
+        if (cmdAnalysis && !cmdAnalysis.result.compatible) {
+          skippedCommands.push(`${plugin.name}/${cmd.name}`);
+          continue;
+        }
+        const dest = join(commandsDir, `${cmd.name}.md`);
+        commands.push({
+          name: cmd.name,
+          src: cmd.src,
+          srcType: cmd.srcType,
+          dest,
+          exists: existsSync(dest),
+        });
+      }
+    }
+
+    // Skills (filter by compatibility)
+    if (options.includeSkills) {
+      for (const skill of plugin.skills) {
+        const skillAnalysis = analysis?.skills.find((s) => s.name === skill.name);
+        if (skillAnalysis && !skillAnalysis.result.compatible) {
+          skippedSkills.push(`${plugin.name}/${skill.name}`);
+          continue;
+        }
+        const destDir = join(skillsDir, skill.name);
+        const skillFiles = skill.files.map((f) => ({
+          src: f.src,
+          dest: join(destDir, f.relativePath),
+          srcType: f.srcType,
+        }));
+        skills.push({
+          name: skill.name,
+          srcDir: skill.srcDir,
+          srcType: skill.srcType,
+          destDir,
+          files: skillFiles,
+          exists: existsSync(destDir),
+        });
+      }
+    }
+  }
+
+  return {
+    plan: { droids, commands, skills },
+    skippedAgents,
+    skippedCommands,
+    skippedSkills,
+  };
 }
 
 export function computeInstallPlan(

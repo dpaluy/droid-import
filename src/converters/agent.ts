@@ -1,4 +1,5 @@
 import matter from "gray-matter";
+import { mapToolsForFactory } from "../analyzer";
 
 function toArray(val: unknown): string[] | null {
   if (!val && val !== 0) return null;
@@ -95,7 +96,9 @@ export function convertAgentToDroid(
   const toolsList = toArray(src.tools);
   const description = sanitizeDescription(src.description);
   const name = String(src.name || fallbackName || "");
-  const tools = Array.isArray(toolsList) && toolsList.length ? toolsList : null;
+  // Map Claude tools to Factory tools
+  const mappedTools = toolsList ? mapToolsForFactory(toolsList) : null;
+  const tools = mappedTools && mappedTools.length > 0 ? mappedTools : null;
 
   const lines: string[] = [];
   lines.push("---");

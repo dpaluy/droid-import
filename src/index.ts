@@ -5,10 +5,15 @@ import { loadMarketplace } from "./marketplace";
 import { discoverPlugins } from "./discovery";
 import {
   getBaseDir,
-  computeInstallPlan,
+  computeFilteredInstallPlan,
   executeInstallPlan,
   readCustomDroidsSetting,
 } from "./installer";
+import {
+  analyzePlugin,
+  formatAnalysisReport,
+  type PluginAnalysis,
+} from "./analyzer";
 import type { CLIArgs, DiscoveredPlugin } from "./types";
 
 const HELP_TEXT = `
@@ -25,6 +30,8 @@ OPTIONS:
   --path <dir>           Project directory for 'project' scope (default: cwd)
   --force                Overwrite existing files
   --dry-run              Preview changes without writing files
+  --analyze              Analyze compatibility before import (show report)
+  --no-filter            Import all items without filtering incompatible ones
   --verbose              Show detailed output
   --no-agents            Skip agent/droid import
   --no-commands          Skip command import
@@ -38,6 +45,9 @@ EXAMPLES:
   # Import from GitHub shorthand
   bunx droid-import --marketplace majesticlabs-dev/majestic-marketplace
 
+  # Analyze compatibility first
+  bunx droid-import --marketplace <url> --analyze
+
   # Import specific plugins
   bunx droid-import --marketplace <url> --plugins majestic-engineer,majestic-rails
 
@@ -45,7 +55,12 @@ EXAMPLES:
   bunx droid-import --marketplace <url> --dry-run
 `;
 
-function parseCliArgs(): CLIArgs {
+interface ExtendedCLIArgs extends CLIArgs {
+  analyze: boolean;
+  noFilter: boolean;
+}
+
+function parseCliArgs(): ExtendedCLIArgs {
   const { values } = parseArgs({
     args: Bun.argv.slice(2),
     options: {
@@ -55,6 +70,8 @@ function parseCliArgs(): CLIArgs {
       path: { type: "string" },
       force: { type: "boolean", default: false },
       "dry-run": { type: "boolean", default: false },
+      analyze: { type: "boolean", default: false },
+      "no-filter": { type: "boolean", default: false },
       verbose: { type: "boolean", default: false },
       "no-agents": { type: "boolean", default: false },
       "no-commands": { type: "boolean", default: false },
@@ -71,6 +88,8 @@ function parseCliArgs(): CLIArgs {
     path: values.path,
     force: values.force ?? false,
     dryRun: values["dry-run"] ?? false,
+    analyze: values.analyze ?? false,
+    noFilter: values["no-filter"] ?? false,
     verbose: values.verbose ?? false,
     help: values.help ?? false,
     components: {
@@ -197,24 +216,55 @@ async function interactiveFlow(): Promise<void> {
     process.exit(0);
   }
 
-  // Compute and execute plan
+  // Analyze plugins for compatibility
+  const analyzeSpinner = p.spinner();
+  analyzeSpinner.start("Analyzing compatibility...");
+
+  const analyses: PluginAnalysis[] = [];
+  for (const plugin of selectedDiscovered) {
+    const analysis = await analyzePlugin(plugin);
+    analyses.push(analysis);
+  }
+
+  analyzeSpinner.stop("Analysis complete");
+
+  // Show analysis summary
+  const totalIncompat =
+    analyses.reduce((sum, a) => sum + (a.summary.totalAgents - a.summary.compatibleAgents), 0) +
+    analyses.reduce((sum, a) => sum + (a.summary.totalCommands - a.summary.compatibleCommands), 0) +
+    analyses.reduce((sum, a) => sum + (a.summary.totalSkills - a.summary.compatibleSkills), 0);
+
+  if (totalIncompat > 0) {
+    p.log.warn(`${totalIncompat} items will be skipped (incompatible with Factory AI)`);
+  }
+
+  // Compute filtered install plan
   const baseDir = getBaseDir(scope as "personal" | "project");
-  const plan = computeInstallPlan(selectedDiscovered, baseDir, {
-    includeAgents: (components as string[]).includes("agents"),
-    includeCommands: (components as string[]).includes("commands"),
-    includeSkills: (components as string[]).includes("skills"),
-  });
+  const { plan, skippedAgents, skippedCommands, skippedSkills } = computeFilteredInstallPlan(
+    selectedDiscovered,
+    analyses,
+    baseDir,
+    {
+      includeAgents: (components as string[]).includes("agents"),
+      includeCommands: (components as string[]).includes("commands"),
+      includeSkills: (components as string[]).includes("skills"),
+    }
+  );
 
   const totalItems =
     plan.droids.length + plan.commands.length + plan.skills.length;
 
   if (totalItems === 0) {
-    p.log.warn("Nothing to install");
+    p.log.warn("Nothing to install (all items incompatible or filtered)");
     process.exit(0);
   }
 
   // Show preview
   p.log.info(`Will install: ${plan.droids.length} droids, ${plan.commands.length} commands, ${plan.skills.length} skills`);
+
+  if (skippedAgents.length + skippedCommands.length + skippedSkills.length > 0) {
+    p.log.warn(`Skipping incompatible: ${skippedAgents.length} agents, ${skippedCommands.length} commands, ${skippedSkills.length} skills`);
+  }
 
   const installSpinner = p.spinner();
   installSpinner.start("Installing...");
@@ -253,7 +303,7 @@ async function interactiveFlow(): Promise<void> {
   p.outro("Done!");
 }
 
-async function nonInteractiveFlow(args: CLIArgs): Promise<void> {
+async function nonInteractiveFlow(args: ExtendedCLIArgs): Promise<void> {
   if (!args.marketplace) {
     console.error("Error: --marketplace is required in non-interactive mode");
     process.exit(1);
@@ -290,24 +340,78 @@ async function nonInteractiveFlow(args: CLIArgs): Promise<void> {
     }
   }
 
+  // Analyze plugins
+  console.log("Analyzing compatibility...");
+  const analyses: PluginAnalysis[] = [];
+  for (const plugin of selectedDiscovered) {
+    if (args.verbose) {
+      console.log(`  Analyzing ${plugin.name}...`);
+    }
+    const analysis = await analyzePlugin(plugin);
+    analyses.push(analysis);
+  }
+
+  // Show analysis report if requested
+  if (args.analyze) {
+    console.log("\n" + formatAnalysisReport(analyses));
+    
+    // If only analyzing (no install), exit
+    if (!args.force && !args.dryRun) {
+      console.log("\nUse --dry-run to preview install or --force to proceed with import.");
+      process.exit(0);
+    }
+  }
+
   const baseDir = getBaseDir(args.scope, args.path);
-  const plan = computeInstallPlan(selectedDiscovered, baseDir, {
-    includeAgents: args.components.agents,
-    includeCommands: args.components.commands,
-    includeSkills: args.components.skills,
-  });
+  
+  // Use filtered plan unless --no-filter is specified
+  let plan;
+  let skippedAgents: string[] = [];
+  let skippedCommands: string[] = [];
+  let skippedSkills: string[] = [];
+
+  if (args.noFilter) {
+    // Import everything without filtering
+    const { computeInstallPlan } = await import("./installer");
+    plan = computeInstallPlan(selectedDiscovered, baseDir, {
+      includeAgents: args.components.agents,
+      includeCommands: args.components.commands,
+      includeSkills: args.components.skills,
+    });
+  } else {
+    // Filter out incompatible items
+    const result = computeFilteredInstallPlan(
+      selectedDiscovered,
+      analyses,
+      baseDir,
+      {
+        includeAgents: args.components.agents,
+        includeCommands: args.components.commands,
+        includeSkills: args.components.skills,
+      }
+    );
+    plan = result.plan;
+    skippedAgents = result.skippedAgents;
+    skippedCommands = result.skippedCommands;
+    skippedSkills = result.skippedSkills;
+  }
 
   const totalItems =
     plan.droids.length + plan.commands.length + plan.skills.length;
 
   if (totalItems === 0) {
-    console.log("Nothing to install");
+    console.log("Nothing to install (all items filtered as incompatible)");
     process.exit(0);
   }
 
   console.log(
-    `Installing: ${plan.droids.length} droids, ${plan.commands.length} commands, ${plan.skills.length} skills`
+    `\nInstalling: ${plan.droids.length} droids, ${plan.commands.length} commands, ${plan.skills.length} skills`
   );
+
+  const totalSkipped = skippedAgents.length + skippedCommands.length + skippedSkills.length;
+  if (totalSkipped > 0) {
+    console.log(`Skipping:   ${skippedAgents.length} agents, ${skippedCommands.length} commands, ${skippedSkills.length} skills (incompatible)`);
+  }
 
   if (args.dryRun) {
     console.log("\n[DRY RUN]");
@@ -324,6 +428,9 @@ async function nonInteractiveFlow(args: CLIArgs): Promise<void> {
   console.log(`  Created: ${result.created}`);
   console.log(`  Overwritten: ${result.overwritten}`);
   console.log(`  Skipped: ${result.skipped}`);
+  if (totalSkipped > 0) {
+    console.log(`  Filtered (incompatible): ${totalSkipped}`);
+  }
 
   if (result.errors.length) {
     console.log("\nErrors:");

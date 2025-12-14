@@ -66,11 +66,38 @@ bunx droid-import --marketplace <url> --no-skills --no-commands
 | `--path <dir>` | Project directory for 'project' scope (default: cwd) |
 | `--force` | Overwrite existing files |
 | `--dry-run` | Preview changes without writing files |
+| `--analyze` | Show compatibility analysis report before import |
+| `--no-filter` | Import all items without filtering incompatible ones |
 | `--verbose` | Show detailed output |
 | `--no-agents` | Skip agent/droid import |
 | `--no-commands` | Skip command import |
 | `--no-skills` | Skip skill import |
 | `--help` | Show help message |
+
+## Compatibility Analysis
+
+droid-import automatically analyzes plugins for Factory AI compatibility before importing:
+
+```bash
+# Show detailed compatibility report
+bunx droid-import --marketplace <url> --analyze
+```
+
+**What gets checked:**
+- Tool compatibility (Claude tools → Factory tools mapping)
+- Required frontmatter fields (`name`, `description`)
+- Claude-specific patterns that won't work in Factory
+
+**Tool Mapping:**
+| Claude Code | Factory AI |
+|-------------|-----------|
+| `Write` | `Edit` |
+| `Bash` | `Execute` |
+| `NotebookEdit` | *(skipped - no equivalent)* |
+| `BrowseURL` | *(skipped - use `WebSearch`/`FetchUrl`)* |
+| `AskUserQuestion` | *(skipped - Claude-specific)* |
+
+Incompatible items are automatically filtered out during import. Use `--no-filter` to import everything regardless of compatibility.
 
 ## What Gets Converted
 
