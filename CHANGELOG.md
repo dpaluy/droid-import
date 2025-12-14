@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2024-12-14
+
+### Added
+
+- Show version in `--help` output
+
+### Changed
+
+- Update @clack/prompts to 0.11.0
+
+## [0.3.0] - 2024-12-14
+
+### Added
+
+- Support for MCP tools detection and reporting
+- Show version at startup in interactive and non-interactive modes
+
 ## [0.2.0] - 2024-12-14
 
 ### Added
