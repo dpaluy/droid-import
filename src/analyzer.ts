@@ -53,6 +53,8 @@ export const TOOL_MAPPING: Record<string, string | null> = {
   NotebookEdit: null,
   BrowseURL: null, // Use WebSearch/FetchUrl instead
   WebFetch: "FetchUrl",
+  // Claude-specific interactive tools
+  AskUserQuestion: null, // No Factory equivalent - use conversation flow
 };
 
 // Claude-specific patterns that indicate incompatibility
@@ -118,10 +120,14 @@ function analyzeTools(tools: string[]): {
   mapped: string[];
   unmapped: string[];
   issues: string[];
+  warnings: string[];
+  suggestions: string[];
 } {
   const mapped: string[] = [];
   const unmapped: string[] = [];
   const issues: string[] = [];
+  const warnings: string[] = [];
+  const suggestions: string[] = [];
 
   for (const tool of tools) {
     // Check if it's already a valid Factory tool
@@ -136,7 +142,13 @@ function analyzeTools(tools: string[]): {
       mapped.push(mapping);
     } else if (mapping === null) {
       unmapped.push(tool);
-      issues.push(`Tool '${tool}' has no Factory equivalent`);
+      // Special handling for AskUserQuestion - it's a warning, not an error
+      if (tool === "AskUserQuestion") {
+        warnings.push("AskUserQuestion not available - agent will use conversation flow for clarification");
+        suggestions.push("Consider adding 'Ask clarifying questions before proceeding' to the prompt");
+      } else {
+        issues.push(`Tool '${tool}' has no Factory equivalent`);
+      }
     } else {
       // Unknown tool - might be MCP or custom
       unmapped.push(tool);
@@ -144,7 +156,7 @@ function analyzeTools(tools: string[]): {
     }
   }
 
-  return { mapped: [...new Set(mapped)], unmapped, issues };
+  return { mapped: [...new Set(mapped)], unmapped, issues, warnings, suggestions };
 }
 
 function checkClaudeSpecificContent(content: string): string[] {
@@ -211,6 +223,8 @@ export async function analyzeAgent(
   const tools = parseTools(frontmatter.tools);
   const toolAnalysis = analyzeTools(tools);
   issues.push(...toolAnalysis.issues);
+  warnings.push(...toolAnalysis.warnings);
+  suggestions.push(...toolAnalysis.suggestions);
 
   if (toolAnalysis.unmapped.length > 0) {
     suggestions.push(
@@ -233,7 +247,9 @@ export async function analyzeAgent(
   score -= warnings.length * 5;
   score = Math.max(0, Math.min(100, score));
 
-  const compatible = issues.length === 0 || toolAnalysis.unmapped.length === 0;
+  // AskUserQuestion warning doesn't affect compatibility
+  const nonAskUserUnmapped = toolAnalysis.unmapped.filter(t => t !== "AskUserQuestion");
+  const compatible = issues.length === 0 || nonAskUserUnmapped.length === 0;
 
   return {
     compatible,
@@ -282,6 +298,8 @@ export async function analyzeCommand(
   const tools = parseTools(frontmatter["allowed-tools"]);
   const toolAnalysis = analyzeTools(tools);
   issues.push(...toolAnalysis.issues);
+  warnings.push(...toolAnalysis.warnings);
+  suggestions.push(...toolAnalysis.suggestions);
 
   // Check for Claude-specific content
   const claudeIssues = checkClaudeSpecificContent(body);
@@ -293,7 +311,9 @@ export async function analyzeCommand(
   score -= warnings.length * 5;
   score = Math.max(0, Math.min(100, score));
 
-  const compatible = toolAnalysis.unmapped.length === 0;
+  // AskUserQuestion warning doesn't affect compatibility
+  const nonAskUserUnmapped = toolAnalysis.unmapped.filter(t => t !== "AskUserQuestion");
+  const compatible = nonAskUserUnmapped.length === 0;
 
   return {
     compatible,
@@ -372,6 +392,8 @@ export async function analyzeSkill(
   if (tools.length > 0) {
     const toolAnalysis = analyzeTools(tools);
     issues.push(...toolAnalysis.issues);
+    warnings.push(...toolAnalysis.warnings);
+    suggestions.push(...toolAnalysis.suggestions);
     mappedTools = toolAnalysis.mapped;
     unmappedTools = toolAnalysis.unmapped;
   }
@@ -386,7 +408,9 @@ export async function analyzeSkill(
   score -= warnings.length * 5;
   score = Math.max(0, Math.min(100, score));
 
-  const compatible = issues.filter((i) => !i.includes("Unknown tool")).length === 0;
+  // AskUserQuestion warning doesn't affect compatibility
+  const nonAskUserUnmapped = unmappedTools.filter(t => t !== "AskUserQuestion");
+  const compatible = issues.filter((i) => !i.includes("Unknown tool")).length === 0 && nonAskUserUnmapped.length === 0;
 
   return {
     compatible,
