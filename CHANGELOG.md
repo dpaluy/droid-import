@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] - 2024-12-14
+
+### Fixed
+
+- Recognize `Bash(pattern)` and `Execute(pattern)` tool restriction syntax used by Claude Code
+- Commands using restricted shell patterns (e.g., `Bash(git *)`) are now correctly mapped to Factory's `Execute` tool
+- Improved MCP tool pattern to handle `mcp__server` format without tool suffix
+
+### Changed
+
+- Commands compatibility improved from 31/41 to 40/41 for majestic-marketplace
+
 ## [0.4.0] - 2024-12-14
 
 ### Added
