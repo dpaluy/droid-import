@@ -23,6 +23,7 @@ export const FACTORY_TOOLS = new Set([
   // Special
   "TodoWrite",
   "Task",
+  "Skill",
   // Categories (allowed as values)
   "read-only",
   "edit",
@@ -72,6 +73,7 @@ export interface AnalysisResult {
   warnings: string[];
   mappedTools: string[];
   unmappedTools: string[];
+  requiredMcps: string[];
   suggestions: string[];
 }
 
@@ -116,15 +118,20 @@ function parseTools(toolsValue: unknown): string[] {
   return [];
 }
 
+// Pattern to detect MCP tools: mcp__<server>__<tool> or mcp__<server>__*
+const MCP_TOOL_PATTERN = /^mcp__([^_]+)__(.+)$/;
+
 function analyzeTools(tools: string[]): {
   mapped: string[];
   unmapped: string[];
+  requiredMcps: string[];
   issues: string[];
   warnings: string[];
   suggestions: string[];
 } {
   const mapped: string[] = [];
   const unmapped: string[] = [];
+  const requiredMcps: string[] = [];
   const issues: string[] = [];
   const warnings: string[] = [];
   const suggestions: string[] = [];
@@ -133,6 +140,17 @@ function analyzeTools(tools: string[]): {
     // Check if it's already a valid Factory tool
     if (FACTORY_TOOLS.has(tool)) {
       mapped.push(tool);
+      continue;
+    }
+
+    // Check if it's an MCP tool - Factory supports MCPs
+    const mcpMatch = MCP_TOOL_PATTERN.exec(tool);
+    if (mcpMatch) {
+      const mcpServer = mcpMatch[1];
+      if (!requiredMcps.includes(mcpServer)) {
+        requiredMcps.push(mcpServer);
+      }
+      mapped.push(tool); // Keep MCP tools as-is
       continue;
     }
 
@@ -150,13 +168,17 @@ function analyzeTools(tools: string[]): {
         issues.push(`Tool '${tool}' has no Factory equivalent`);
       }
     } else {
-      // Unknown tool - might be MCP or custom
+      // Unknown tool - might be Claude-specific
       unmapped.push(tool);
-      issues.push(`Unknown tool '${tool}' - may be MCP or Claude-specific`);
+      issues.push(`Unknown tool '${tool}' - may be Claude-specific`);
     }
   }
 
-  return { mapped: [...new Set(mapped)], unmapped, issues, warnings, suggestions };
+  if (requiredMcps.length > 0) {
+    warnings.push(`Requires MCP servers: ${requiredMcps.join(", ")}`);
+  }
+
+  return { mapped: [...new Set(mapped)], unmapped, requiredMcps, issues, warnings, suggestions };
 }
 
 function checkClaudeSpecificContent(content: string): string[] {
@@ -197,6 +219,7 @@ export async function analyzeAgent(
       warnings: [],
       mappedTools: [],
       unmappedTools: [],
+      requiredMcps: [],
       suggestions: [],
     };
   }
@@ -249,7 +272,7 @@ export async function analyzeAgent(
 
   // AskUserQuestion warning doesn't affect compatibility
   const nonAskUserUnmapped = toolAnalysis.unmapped.filter(t => t !== "AskUserQuestion");
-  const compatible = issues.length === 0 || nonAskUserUnmapped.length === 0;
+  const compatible = nonAskUserUnmapped.length === 0;
 
   return {
     compatible,
@@ -258,6 +281,7 @@ export async function analyzeAgent(
     warnings,
     mappedTools: toolAnalysis.mapped,
     unmappedTools: toolAnalysis.unmapped,
+    requiredMcps: toolAnalysis.requiredMcps,
     suggestions,
   };
 }
@@ -280,6 +304,7 @@ export async function analyzeCommand(
       warnings: [],
       mappedTools: [],
       unmappedTools: [],
+      requiredMcps: [],
       suggestions: [],
     };
   }
@@ -322,6 +347,7 @@ export async function analyzeCommand(
     warnings,
     mappedTools: toolAnalysis.mapped,
     unmappedTools: toolAnalysis.unmapped,
+    requiredMcps: toolAnalysis.requiredMcps,
     suggestions,
   };
 }
@@ -334,6 +360,7 @@ export async function analyzeSkill(
   const suggestions: string[] = [];
   let mappedTools: string[] = [];
   let unmappedTools: string[] = [];
+  let requiredMcps: string[] = [];
 
   // Find SKILL.md file
   const skillFile = skill.files.find(
@@ -350,6 +377,7 @@ export async function analyzeSkill(
       warnings: [],
       mappedTools: [],
       unmappedTools: [],
+      requiredMcps: [],
       suggestions: [],
     };
   }
@@ -365,6 +393,7 @@ export async function analyzeSkill(
       warnings: [],
       mappedTools: [],
       unmappedTools: [],
+      requiredMcps: [],
       suggestions: [],
     };
   }
@@ -396,6 +425,7 @@ export async function analyzeSkill(
     suggestions.push(...toolAnalysis.suggestions);
     mappedTools = toolAnalysis.mapped;
     unmappedTools = toolAnalysis.unmapped;
+    requiredMcps = toolAnalysis.requiredMcps;
   }
 
   // Check for Claude-specific content
@@ -410,7 +440,7 @@ export async function analyzeSkill(
 
   // AskUserQuestion warning doesn't affect compatibility
   const nonAskUserUnmapped = unmappedTools.filter(t => t !== "AskUserQuestion");
-  const compatible = issues.filter((i) => !i.includes("Unknown tool")).length === 0 && nonAskUserUnmapped.length === 0;
+  const compatible = nonAskUserUnmapped.length === 0;
 
   return {
     compatible,
@@ -419,6 +449,7 @@ export async function analyzeSkill(
     warnings,
     mappedTools,
     unmappedTools,
+    requiredMcps,
     suggestions,
   };
 }
@@ -498,6 +529,23 @@ export function formatAnalysisReport(analyses: PluginAnalysis[]): string {
     lines.push(`│  Agents:   ${summary.compatibleAgents}/${summary.totalAgents} compatible`);
     lines.push(`│  Commands: ${summary.compatibleCommands}/${summary.totalCommands} compatible`);
     lines.push(`│  Skills:   ${summary.compatibleSkills}/${summary.totalSkills} compatible`);
+
+    // Collect required MCPs
+    const allRequiredMcps = new Set<string>();
+    for (const agent of plugin.agents) {
+      for (const mcp of agent.result.requiredMcps) allRequiredMcps.add(mcp);
+    }
+    for (const cmd of plugin.commands) {
+      for (const mcp of cmd.result.requiredMcps) allRequiredMcps.add(mcp);
+    }
+    for (const skill of plugin.skills) {
+      for (const mcp of skill.result.requiredMcps) allRequiredMcps.add(mcp);
+    }
+
+    if (allRequiredMcps.size > 0) {
+      lines.push("│");
+      lines.push(`│  ℹ Requires MCP servers: ${[...allRequiredMcps].join(", ")}`);
+    }
 
     // Show incompatible items
     const incompatibleAgents = plugin.agents.filter((a) => !a.result.compatible);
