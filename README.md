@@ -158,6 +158,23 @@ plugins/my-plugin/
         └── resources/
 ```
 
+## Troubleshooting
+
+### bunx shows old version
+
+If `bunx droid-import` shows an outdated version, clear the cache:
+
+```bash
+rm -rf ~/.bun/install/cache
+bunx droid-import
+```
+
+Or force the latest version:
+
+```bash
+bunx droid-import@latest
+```
+
 ## Requirements
 
 - [Bun](https://bun.sh/) runtime
