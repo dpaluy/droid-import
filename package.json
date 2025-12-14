@@ -1,0 +1,30 @@
+{
+  "name": "droid-import",
+  "version": "0.1.0",
+  "description": "Import Claude Code marketplace plugins into FactoryAI",
+  "type": "module",
+  "bin": {
+    "droid-import": "./src/index.ts"
+  },
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "typecheck": "bun x tsc --noEmit"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.9.1",
+    "gray-matter": "^4.0.3"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.7.2"
+  },
+  "keywords": [
+    "factory",
+    "droid",
+    "claude-code",
+    "marketplace",
+    "importer"
+  ],
+  "author": "",
+  "license": "MIT"
+}
