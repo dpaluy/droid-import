@@ -118,8 +118,12 @@ function parseTools(toolsValue: unknown): string[] {
   return [];
 }
 
-// Pattern to detect MCP tools: mcp__<server>__<tool> or mcp__<server>__*
-const MCP_TOOL_PATTERN = /^mcp__([^_]+)__(.+)$/;
+// Pattern to detect MCP tools: mcp__<server>__<tool> or mcp__<server>__* or mcp__<server>
+const MCP_TOOL_PATTERN = /^mcp__([a-zA-Z0-9_-]+)(?:__(.+))?$/;
+
+// Pattern to detect Bash/Execute tool restrictions: Bash(pattern) or Execute(pattern)
+// Claude Code uses this syntax to restrict which shell commands are allowed
+const BASH_RESTRICTION_PATTERN = /^(Bash|Execute)\(.+\)$/;
 
 function analyzeTools(tools: string[]): {
   mapped: string[];
@@ -151,6 +155,13 @@ function analyzeTools(tools: string[]): {
         requiredMcps.push(mcpServer);
       }
       mapped.push(tool); // Keep MCP tools as-is
+      continue;
+    }
+
+    // Check if it's a Bash/Execute restriction pattern like Bash(git *) or Execute(npm *)
+    // These map to Factory's Execute tool
+    if (BASH_RESTRICTION_PATTERN.test(tool)) {
+      mapped.push("Execute");
       continue;
     }
 
