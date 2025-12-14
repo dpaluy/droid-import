@@ -11,6 +11,11 @@ function toArray(val: unknown): string[] | null {
   return parts.length ? [...new Set(parts)] : null;
 }
 
+function hasAskUserQuestion(tools: string[] | null): boolean {
+  if (!tools) return false;
+  return tools.some(t => t === "AskUserQuestion");
+}
+
 function sanitizeDescription(input: unknown): string | undefined {
   if (typeof input !== "string") return undefined;
   let s = String(input);
@@ -96,6 +101,8 @@ export function convertAgentToDroid(
   const toolsList = toArray(src.tools);
   const description = sanitizeDescription(src.description);
   const name = String(src.name || fallbackName || "");
+  // Check if original tools included AskUserQuestion
+  const hadAskUserQuestion = hasAskUserQuestion(toolsList);
   // Map Claude tools to Factory tools
   const mappedTools = toolsList ? mapToolsForFactory(toolsList) : null;
   const tools = mappedTools && mappedTools.length > 0 ? mappedTools : null;
@@ -126,5 +133,17 @@ export function convertAgentToDroid(
   }
 
   lines.push("---");
-  return lines.join("\n") + "\n\n" + (body || "");
+
+  // Add migration note if AskUserQuestion was in the original tools
+  let finalBody = body || "";
+  if (hadAskUserQuestion) {
+    const migrationNote = `<!-- Migration Note: This agent originally used AskUserQuestion for 
+clarification. In Factory interactive mode, ask questions naturally 
+in your response. In droid exec, request all needed context upfront. -->
+
+`;
+    finalBody = migrationNote + finalBody;
+  }
+
+  return lines.join("\n") + "\n\n" + finalBody;
 }

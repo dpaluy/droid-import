@@ -95,7 +95,7 @@ bunx droid-import --marketplace <url> --analyze
 | `Bash` | `Execute` |
 | `NotebookEdit` | *(skipped - no equivalent)* |
 | `BrowseURL` | *(skipped - use `WebSearch`/`FetchUrl`)* |
-| `AskUserQuestion` | *(skipped - Claude-specific)* |
+| `AskUserQuestion` | *(converted - uses conversation flow)* |
 
 Incompatible items are automatically filtered out during import. Use `--no-filter` to import everything regardless of compatibility.
 

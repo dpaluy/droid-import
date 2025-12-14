@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] - 2024-12-14
+
+### Added
+
+- Graceful migration for `AskUserQuestion` tool - agents using it are now imported with a migration note instead of being skipped
+- Specific warnings and suggestions when `AskUserQuestion` is detected in agent tools
+
+### Changed
+
+- `AskUserQuestion` no longer causes agents to be marked as incompatible
+- Updated tool mapping documentation to reflect conversation flow approach
+
 ## [0.1.0] - 2024-12-14
 
 ### Added
