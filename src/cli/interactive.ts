@@ -7,6 +7,7 @@ import {
   executeInstallPlan,
   readCustomDroidsSetting,
 } from "../installer";
+import { runDroidVerification } from "../verifier";
 import { analyzePlugin, type PluginAnalysis } from "../analyzer";
 import type { DiscoveredPlugin } from "../types";
 
@@ -195,6 +196,19 @@ export async function interactiveFlow(): Promise<void> {
     p.log.warn(
       "Custom Droids are not enabled. Enable them in /settings → Experimental → Custom Droids"
     );
+  }
+
+  if (result.created > 0 || result.overwritten > 0) {
+    const runVerify = await p.confirm({
+      message: "Run verification with droid CLI to check imported files?",
+      initialValue: false,
+    });
+
+    if (!p.isCancel(runVerify) && runVerify) {
+      p.outro("Launching verifier...");
+      await runDroidVerification(plan, baseDir);
+      return;
+    }
   }
 
   p.outro("Done!");
