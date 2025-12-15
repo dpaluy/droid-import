@@ -69,6 +69,7 @@ bunx droid-import --marketplace <url> --no-skills --no-commands
 | `--analyze` | Show compatibility analysis report before import |
 | `--no-filter` | Import all items without filtering incompatible ones |
 | `--verbose` | Show detailed output |
+| `--verify` | Run droid CLI verification after import (non-interactive only) |
 | `--no-agents` | Skip agent/droid import |
 | `--no-commands` | Skip command import |
 | `--no-skills` | Skip skill import |
@@ -98,6 +99,23 @@ bunx droid-import --marketplace <url> --analyze
 | `AskUserQuestion` | *(converted - uses conversation flow)* |
 
 Incompatible items are automatically filtered out during import. Use `--no-filter` to import everything regardless of compatibility.
+
+## Post-Import Verification
+
+After importing, you can verify that all files are properly converted for Factory AI:
+
+**Interactive mode:** You'll be prompted to run verification after successful import.
+
+**Non-interactive mode:** Use the `--verify` flag:
+
+```bash
+bunx droid-import --marketplace <url> --verify
+```
+
+The verifier launches the `droid` CLI to:
+1. Sample imported files from droids, commands, and skills
+2. Check that tool names use Factory AI equivalents
+3. Report any files that need manual fixes
 
 ## What Gets Converted
 
