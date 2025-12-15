@@ -1,4 +1,5 @@
 import matter from "gray-matter";
+import { mapToolsForFactory } from "../analyzer";
 
 const ALLOWED_FRONTMATTER_KEYS = new Set([
   "description",
@@ -82,24 +83,25 @@ export function convertCommand(mdText: string): string {
   }
 
   if (filtered["allowed-tools"]) {
-    const tools = filtered["allowed-tools"];
-    if (Array.isArray(tools)) {
-      lines.push("allowed-tools:");
-      for (const t of tools) {
-        lines.push(`  - ${t}`);
-      }
-    } else if (typeof tools === "string") {
-      const toolList = tools
+    const rawTools = filtered["allowed-tools"];
+    let toolList: string[] = [];
+    if (Array.isArray(rawTools)) {
+      toolList = rawTools.map(String);
+    } else if (typeof rawTools === "string") {
+      toolList = rawTools
         .split(",")
         .map((t) => t.trim())
         .filter(Boolean);
-      if (toolList.length === 1) {
-        lines.push(`allowed-tools: ${toolList[0]}`);
-      } else if (toolList.length > 1) {
-        lines.push("allowed-tools:");
-        for (const t of toolList) {
-          lines.push(`  - ${t}`);
-        }
+    }
+    // Map Claude tools to Factory tools
+    const mappedTools = mapToolsForFactory(toolList);
+    if (mappedTools.length === 1) {
+      lines.push(`allowed-tools:`);
+      lines.push(`  - ${mappedTools[0]}`);
+    } else if (mappedTools.length > 1) {
+      lines.push("allowed-tools:");
+      for (const t of mappedTools) {
+        lines.push(`  - ${t}`);
       }
     }
   }

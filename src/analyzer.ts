@@ -36,7 +36,7 @@ export const FACTORY_TOOLS = new Set([
 export const TOOL_MAPPING: Record<string, string | null> = {
   // Direct mappings
   Read: "Read",
-  Write: "Edit", // Claude's Write -> Factory's Edit
+  Write: "Create", // Claude's Write -> Factory's Create (for new files)
   Edit: "Edit",
   MultiEdit: "MultiEdit",
   Bash: "Execute", // Claude's Bash -> Factory's Execute
@@ -50,10 +50,11 @@ export const TOOL_MAPPING: Record<string, string | null> = {
   Task: "Task",
   Create: "Create",
   ApplyPatch: "ApplyPatch",
+  Skill: "Skill",
   // Tools that don't have Factory equivalents
   NotebookEdit: null,
   BrowseURL: null, // Use WebSearch/FetchUrl instead
-  WebFetch: "FetchUrl",
+  WebFetch: "FetchUrl", // Claude's WebFetch -> Factory's FetchUrl
   // Claude-specific interactive tools
   AskUserQuestion: null, // No Factory equivalent - use conversation flow
 };
@@ -609,12 +610,30 @@ export function formatAnalysisReport(analyses: PluginAnalysis[]): string {
 export function mapToolsForFactory(tools: string[]): string[] {
   const mapped: string[] = [];
   for (const tool of tools) {
+    // Check if it's already a valid Factory tool
     if (FACTORY_TOOLS.has(tool)) {
       mapped.push(tool);
-    } else if (TOOL_MAPPING[tool]) {
+      continue;
+    }
+    
+    // Check if it's an MCP tool - Factory supports MCPs
+    if (MCP_TOOL_PATTERN.test(tool)) {
+      mapped.push(tool); // Keep MCP tools as-is
+      continue;
+    }
+    
+    // Check if it's a Bash/Execute restriction pattern like Bash(git *) or Execute(npm *)
+    // These map to Factory's Execute tool
+    if (BASH_RESTRICTION_PATTERN.test(tool)) {
+      mapped.push("Execute");
+      continue;
+    }
+    
+    // Check if we can map it via TOOL_MAPPING
+    if (TOOL_MAPPING[tool]) {
       mapped.push(TOOL_MAPPING[tool]!);
     }
-    // Skip unmapped tools
+    // Skip unmapped tools (null mappings or unknown tools)
   }
   return [...new Set(mapped)];
 }
