@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.0] - 2024-12-14
+
+### Added
+
+- `--verify` flag to launch droid CLI after import for verification
+- Verification prompt instructs droid to sample imported files and check for compatibility issues
+
+## [0.6.0] - 2024-12-14
+
+### Fixed
+
+- Commands and skills now properly convert Claude Code tools to Factory AI equivalents
+- Tool mapping applied in command and skill converters (was only in agent converter)
+
+### Changed
+
+- `Write` tool now maps to `Create` (was incorrectly mapping to `Edit`)
+- `WebFetch` tool now maps to `FetchUrl`
+- `Bash` and `Bash(pattern)` tools now map to `Execute`
+- `AskUserQuestion` is now filtered out (no Factory equivalent)
+- Added `Skill` to valid Factory tools
+
 ## [0.5.0] - 2024-12-14
 
 ### Fixed
