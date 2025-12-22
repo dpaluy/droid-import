@@ -1,5 +1,7 @@
 # droid-import
 
+[![npm version](https://img.shields.io/npm/v/droid-import.svg)](https://www.npmjs.com/package/droid-import)
+
 Import Claude Code marketplace plugins into FactoryAI, including **skills** (which other tools lack).
 
 ## Features
