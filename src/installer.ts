@@ -13,6 +13,7 @@ import { httpGet } from "./marketplace";
 import { convertAgentToDroid } from "./converters/agent";
 import { convertCommand } from "./converters/command";
 import { convertSkillFile, isSkillMainFile } from "./converters/skill";
+import { IMPORT_FIXER_DROID_MD, IMPORT_FIXER_DROID_NAME } from "./fixer-droid";
 
 export function getBaseDir(scope: "personal" | "project", projectPath?: string): string {
   if (scope === "personal") {
@@ -200,6 +201,64 @@ export function computeInstallPlan(
 function ensureDir(dir: string): void {
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
+  }
+}
+
+export function installFixerDroid(
+  baseDir: string,
+  options: { force: boolean; dryRun: boolean }
+): {
+  path: string;
+  wrote: boolean;
+  skipped: boolean;
+  wouldWrite: boolean;
+  wouldOverwrite: boolean;
+  error?: string;
+} {
+  const droidsDir = join(baseDir, "droids");
+  const dest = join(droidsDir, `${IMPORT_FIXER_DROID_NAME}.md`);
+  try {
+    const exists = existsSync(dest);
+    const wouldOverwrite = exists && options.force;
+    const wouldWrite = !exists || wouldOverwrite;
+    if (exists && !options.force) {
+      return {
+        path: dest,
+        wrote: false,
+        skipped: true,
+        wouldWrite: false,
+        wouldOverwrite: false,
+      };
+    }
+
+    if (options.dryRun) {
+      return {
+        path: dest,
+        wrote: false,
+        skipped: false,
+        wouldWrite,
+        wouldOverwrite,
+      };
+    }
+
+    ensureDir(droidsDir);
+    writeFileSync(dest, IMPORT_FIXER_DROID_MD, "utf8");
+    return {
+      path: dest,
+      wrote: true,
+      skipped: false,
+      wouldWrite: false,
+      wouldOverwrite: false,
+    };
+  } catch (e) {
+    return {
+      path: dest,
+      wrote: false,
+      skipped: false,
+      wouldWrite: false,
+      wouldOverwrite: false,
+      error: (e as Error).message,
+    };
   }
 }
 

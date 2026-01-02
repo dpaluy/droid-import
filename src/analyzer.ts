@@ -67,6 +67,29 @@ const CLAUDE_SPECIFIC_PATTERNS = [
   /@claude/i,
 ];
 
+const LEGACY_RUNTIME_PATTERNS: Array<{ re: RegExp; warning: string; suggestion?: string }> = [
+  {
+    re: /\bAskUserQuestion\b/,
+    warning: "References AskUserQuestion (not available in Factory) - should ask questions in normal chat",
+    suggestion: "Replace 'AskUserQuestion' references with plain-language prompts to ask the user",
+  },
+  {
+    re: /^\s*agent\s+\S+/m,
+    warning: "Contains 'agent <name>' invocations - Factory uses the Task tool + subagent_type",
+    suggestion: "Replace 'agent <name>' with guidance to use the Task tool (subagent_type: <name>)",
+  },
+  {
+    re: /^\s*skill\s+\S+/m,
+    warning: "Contains 'skill <name>' invocations - Factory uses the Skill tool",
+    suggestion: "Replace 'skill <name>' with guidance to use the Skill tool",
+  },
+  {
+    re: /\b\.claude\//,
+    warning: "References .claude/ paths - Factory uses .factory/ for most local automation/config",
+    suggestion: "If this is a Factory workflow, update paths to .factory/ equivalents",
+  },
+];
+
 export interface AnalysisResult {
   compatible: boolean;
   score: number; // 0-100
@@ -203,6 +226,18 @@ function checkClaudeSpecificContent(content: string): string[] {
   return issues;
 }
 
+function checkLegacyRuntimeContent(content: string): { warnings: string[]; suggestions: string[] } {
+  const warnings: string[] = [];
+  const suggestions: string[] = [];
+  for (const { re, warning, suggestion } of LEGACY_RUNTIME_PATTERNS) {
+    if (re.test(content)) {
+      warnings.push(warning);
+      if (suggestion) suggestions.push(suggestion);
+    }
+  }
+  return { warnings: [...new Set(warnings)], suggestions: [...new Set(suggestions)] };
+}
+
 async function fetchContent(
   src: string,
   srcType: "local" | "remote"
@@ -270,6 +305,11 @@ export async function analyzeAgent(
   // Check for Claude-specific content
   const claudeIssues = checkClaudeSpecificContent(body);
   warnings.push(...claudeIssues);
+
+  // Check for legacy runtime patterns that often need normalization
+  const legacy = checkLegacyRuntimeContent(body);
+  warnings.push(...legacy.warnings);
+  suggestions.push(...legacy.suggestions);
 
   // Check description
   if (!frontmatter.description) {
@@ -341,6 +381,10 @@ export async function analyzeCommand(
   // Check for Claude-specific content
   const claudeIssues = checkClaudeSpecificContent(body);
   warnings.push(...claudeIssues);
+
+  const legacy = checkLegacyRuntimeContent(body);
+  warnings.push(...legacy.warnings);
+  suggestions.push(...legacy.suggestions);
 
   // Calculate score
   let score = 100;
@@ -443,6 +487,10 @@ export async function analyzeSkill(
   // Check for Claude-specific content
   const claudeIssues = checkClaudeSpecificContent(body);
   warnings.push(...claudeIssues);
+
+  const legacy = checkLegacyRuntimeContent(body);
+  warnings.push(...legacy.warnings);
+  suggestions.push(...legacy.suggestions);
 
   // Calculate score
   let score = 100;

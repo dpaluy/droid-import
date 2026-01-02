@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.0] - 2026-01-02
+
+### Added
+
+- `--normalize-installed` to rewrite an existing `.factory/` install in-place to remove legacy patterns
+- `--install-fixer-droid` to install an `import-fixer` droid into the target droids directory
+- Legacy runtime pattern detection (warnings + suggestions) during compatibility analysis
+
+### Changed
+
+- Imported droids/commands/skills now get best-effort normalization of legacy patterns during conversion
+
 ## [0.7.0] - 2024-12-14
 
 ### Added

@@ -1,5 +1,6 @@
 import matter from "gray-matter";
 import { mapToolsForFactory } from "../analyzer";
+import { normalizeText } from "../normalizer";
 
 const ALLOWED_FRONTMATTER_KEYS = new Set([
   "name",
@@ -105,7 +106,13 @@ export function convertSkillFile(mdText: string, fallbackName?: string): string 
   }
 
   lines.push("---");
-  return lines.join("\n") + "\n\n" + (body || "");
+
+  const normalizedBody = normalizeText(body || "", {
+    fileKind: "skill",
+    addHeaderNote: false,
+  }).text;
+
+  return lines.join("\n") + "\n\n" + normalizedBody;
 }
 
 export function isSkillMainFile(filename: string): boolean {

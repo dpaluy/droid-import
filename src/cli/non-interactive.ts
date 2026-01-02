@@ -6,6 +6,7 @@ import {
   computeInstallPlan,
   executeInstallPlan,
   readCustomDroidsSetting,
+  installFixerDroid,
 } from "../installer";
 import { analyzePlugin, formatAnalysisReport, type PluginAnalysis } from "../analyzer";
 import { runDroidVerification } from "../verifier";
@@ -22,6 +23,7 @@ export interface NonInteractiveArgs {
   noFilter: boolean;
   verbose: boolean;
   verify: boolean;
+  installFixerDroid: boolean;
   components: {
     agents: boolean;
     commands: boolean;
@@ -135,6 +137,19 @@ export async function nonInteractiveFlow(args: NonInteractiveArgs): Promise<void
     verbose: args.verbose,
     onProgress: args.verbose ? console.log : undefined,
   });
+
+  if (args.installFixerDroid) {
+    const fixer = installFixerDroid(baseDir, { force: args.force, dryRun: args.dryRun });
+    if (fixer.error) {
+      console.log(`\nWarning: failed to install import-fixer droid: ${fixer.error}`);
+    } else if (fixer.wrote) {
+      console.log(`\nInstalled import-fixer droid: ${fixer.path}`);
+    } else if (fixer.wouldWrite) {
+      console.log(
+        `\nWould ${fixer.wouldOverwrite ? "overwrite" : "install"} import-fixer droid: ${fixer.path}`
+      );
+    }
+  }
 
   console.log("\nSummary:");
   console.log(`  Created: ${result.created}`);

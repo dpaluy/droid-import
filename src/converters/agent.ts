@@ -1,5 +1,6 @@
 import matter from "gray-matter";
 import { mapToolsForFactory } from "../analyzer";
+import { normalizeText } from "../normalizer";
 
 function toArray(val: unknown): string[] | null {
   if (!val && val !== 0) return null;
@@ -134,8 +135,13 @@ export function convertAgentToDroid(
 
   lines.push("---");
 
+  // Normalize body text for Factory (best-effort)
+  let finalBody = normalizeText(body || "", {
+    fileKind: "droid",
+    addHeaderNote: false,
+  }).text;
+
   // Add migration note if AskUserQuestion was in the original tools
-  let finalBody = body || "";
   if (hadAskUserQuestion) {
     const migrationNote = `<!-- Migration Note: This agent originally used AskUserQuestion for 
 clarification. In Factory interactive mode, ask questions naturally 

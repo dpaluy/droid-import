@@ -1,5 +1,6 @@
 import matter from "gray-matter";
 import { mapToolsForFactory } from "../analyzer";
+import { normalizeText } from "../normalizer";
 
 const ALLOWED_FRONTMATTER_KEYS = new Set([
   "description",
@@ -52,9 +53,15 @@ export function convertCommand(mdText: string): string {
     }
   }
 
+  // Normalize the body for Factory (best-effort)
+  const normalizedBody = normalizeText(body || "", {
+    fileKind: "command",
+    addHeaderNote: false,
+  }).text;
+
   // If no frontmatter after filtering, just return body
   if (Object.keys(filtered).length === 0) {
-    return body.trim() ? body : mdText;
+    return normalizedBody.trim() ? normalizedBody : mdText;
   }
 
   const lines: string[] = [];
@@ -107,5 +114,5 @@ export function convertCommand(mdText: string): string {
   }
 
   lines.push("---");
-  return lines.join("\n") + "\n\n" + (body || "");
+  return lines.join("\n") + "\n\n" + normalizedBody;
 }
